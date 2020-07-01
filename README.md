@@ -85,7 +85,7 @@ Search criteria:
 
 And.... the answer is ***Cast Away***
     
-```
+```sh
 {
 	"filterSet": ["movie_title"],
 	"conditions": [
@@ -156,15 +156,13 @@ And.... the answer is ***Cast Away***
 		{
 			"fieldName" : "NUM_CRITIC_FOR_REVIEWS",
 			"operator" : "GREATER_THAN",
-			"values" : ["200"]
-			
+			"values" : ["200"]	
 		},
 		{
 			"fieldName" : "TITLE_YEAR",
 			"operator" : "BETWEEN",
 			"lowerValue" : "2000",
 			"upperValue" : "2005"
-			
 		},
 		{
 			"fieldName" : "PLOT_KEYWORDS",
@@ -173,14 +171,16 @@ And.... the answer is ***Cast Away***
 				"christmas",
 				"survival"
 			]
-			
 		}
 	]
 }
 ```
-<img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo10.png"/>
+.
+ <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo10.png"/>
+
 ###### Example: 2
 Search criteria: **Movies that have ***BOTH*** Kate Winslet and Leonardo DiCaprio, with selected attributes.**
+
 ```
 {
 	"filterSet": ["movie_title", "duration", "plot_keywords","actors"],
@@ -190,14 +190,16 @@ Search criteria: **Movies that have ***BOTH*** Kate Winslet and Leonardo DiCapri
 			"operator" : "CONTAINS_ALL",
 			"values" : ["Kate Winslet", "Leonardo DiCaprio"]			
 		}
-		
 	]
 }
 ```
+.
+
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo1.png"/>
 
 ###### Example: 3
 Search criteria: **Movies that have ***BOTH*** Kate Winslet and Leonardo DiCaprio, with ALL attributes.**
+
 ```
 {
 	"conditions": [
@@ -210,10 +212,12 @@ Search criteria: **Movies that have ***BOTH*** Kate Winslet and Leonardo DiCapri
 	]
 }
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo2.png"/>
 
 ###### Example: 4
 Search criteria: **Movies that contains ***EITHER*** had Kate Winslet OR Leonardo DiCaprio, with selected attributes.**
+
 ```
 {
 	"filterSet": ["movie_title", "duration", "plot_keywords","actors"],
@@ -227,9 +231,12 @@ Search criteria: **Movies that contains ***EITHER*** had Kate Winslet OR Leonard
 	]
 }
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo3.png"/>
+
 ###### Example: 5
 Search criteria: **Movies of Leonardo DiCaprio that he didn't do with Kate Winslet, with selected attributes.**
+
 ```
 {
 	"filterSet": ["movie_title", "duration", "plot_keywords","actors"],
@@ -248,10 +255,13 @@ Search criteria: **Movies of Leonardo DiCaprio that he didn't do with Kate Winsl
 	]
 }
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo4.png"/>
+
 
 ###### Example: 6
 Search criteria: **Movies of Leonardo DiCaprio that he didn't do with either Kate Winslet or Christoph Waltz.**
+
 ```
 {
 	"filterSet": ["movie_title", "duration", "plot_keywords","actors"],
@@ -270,10 +280,14 @@ Search criteria: **Movies of Leonardo DiCaprio that he didn't do with either Kat
 	]
 }
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo5.png"/>
 
+
 ###### Example: 7
+
 Search criteria: **Movies of Dwayne Johnson that came after 2011.**
+
 ```
 {
 	"filterSet": ["movie_title", "plot_keywords","actors", "title_year"],
@@ -293,10 +307,12 @@ Search criteria: **Movies of Dwayne Johnson that came after 2011.**
 	]
 }
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo6.png"/>
 
 ###### Example: 8
 Search criteria: ***Comedy*** **Movies of Dwayne Johnson that came after 2011**
+
 ```
 {
 	"filterSet": ["movie_title", "plot_keywords","actors", "title_year","genres"],
@@ -323,10 +339,13 @@ Search criteria: ***Comedy*** **Movies of Dwayne Johnson that came after 2011**
 }
 
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo7.png"/>
 
 ###### Example: 9
+
 Search criteria: **Either Comedy  or Fantasy Movies of Dwayne Johnson that came after 2011**
+
 ```
 {
 	"filterSet": ["movie_title", "plot_keywords","actors", "title_year","genres"],
@@ -353,10 +372,12 @@ Search criteria: **Either Comedy  or Fantasy Movies of Dwayne Johnson that came 
 }
 
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo8.png"/>
 
 ###### Example: 10
 Search criteria: **Comedy PLUS Fantasy Movies of Dwayne Johnson that came after 2011**
+
 ```
 {
 	"filterSet": ["movie_title", "plot_keywords","actors", "title_year","genres"],
@@ -383,4 +404,5 @@ Search criteria: **Comedy PLUS Fantasy Movies of Dwayne Johnson that came after 
 }
 
 ```
+.
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo9.png"/>
