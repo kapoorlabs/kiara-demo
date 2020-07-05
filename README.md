@@ -8,6 +8,16 @@ Once you get comfortable and realise the value that Kiara DB provides, by giving
 This step by step readme doc will guide you, as to how this demo project should be used.
 Additionally if you prefer watching a tutorial video, rather than reading the doc, you may watch the tutorial video at this link:-
 
+#### Complete video walkthrough: -
+https://www.youtube.com/watch?v=b-IqstIuUDY&t=593s
+
+#### How Kiara Stands out: -
+https://www.youtube.com/watch?v=-AL6TrOgdKI
+
+#### Kiara query walkthrough: -
+https://www.youtube.com/watch?v=-T-Bwu0WQAI
+
+
 #### Prerequisites: -
 Following third party packages must be installed on your system
 ```
@@ -406,3 +416,6 @@ Search criteria: **Comedy PLUS Fantasy Movies of Dwayne Johnson that came after 
 ```
 .
 <img src="https://www.kapoorlabs.com/wp-content/uploads/2020/07/demo9.png"/>
+
+
+Visit www.kapoorlabs.com/kiara to get latest info
