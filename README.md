@@ -26,7 +26,7 @@ Following third party packages must be installed on your system
 - Git
 ```
 Kiara uses Lombok, if you are using an IDE that does not have a lombok plugin installed, the IDE might report you errors, but the code will just build fine.
-https://projectlombok.org/setup/eclipse
+https://projectlombok.org
 
 #### Step 1: Clone the git hub repo.
 ```sh
