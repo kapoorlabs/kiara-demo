@@ -22,9 +22,9 @@ public class DemoController {
 
 	@PostMapping(path = "/movie")
 	public ApiResponse postFlexDates(@RequestBody ApiRequest apiRequest) throws Exception {
-		
+
 		List<Condition> conditions = new LinkedList<>();
-		
+
 		if (apiRequest.getConditions() == null) {
 			apiRequest.setConditions(new LinkedList<>());
 		}
