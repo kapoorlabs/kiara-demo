@@ -6,7 +6,6 @@ import java.io.InputStreamReader;
 
 import org.springframework.stereotype.Repository;
 
-import com.kapoorlabs.kiara.adapters.PojoAdapter;
 import com.kapoorlabs.kiara.domain.Store;
 import com.kapoorlabs.kiara.exception.LoadDataException;
 import com.kapoorlabs.kiara.loader.StoreLoader;
@@ -20,11 +19,11 @@ public class MovieStore {
 
 	
 	@Getter
-	Store movieStore;
+	Store<Movie> movieStore;
 
 	public MovieStore() {
-		movieStore = new Store(PojoAdapter.getSdqlColumns(Movie.class));
-		StoreLoader storeLoader = new StoreLoader(movieStore);
+		movieStore = new Store<>(Movie.class);
+		StoreLoader<Movie> storeLoader = new StoreLoader<>(movieStore);
 
 		ClassLoader classLoader = MovieStore.class.getClassLoader();
 		InputStream csvFile = classLoader.getResourceAsStream("movie_metadata.csv");
