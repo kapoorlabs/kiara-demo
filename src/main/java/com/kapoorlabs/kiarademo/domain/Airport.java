@@ -1,23 +1,19 @@
 package com.kapoorlabs.kiarademo.domain;
 
-import com.kapoorlabs.kiara.domain.annotations.CaseInsensitive;
-import com.kapoorlabs.kiara.domain.annotations.OneEditAway;
+import com.kapoorlabs.kiara.domain.annotations.Predictable;
 
 import lombok.Data;
 
 @Data
 public class Airport {
 	
-	@CaseInsensitive
-	@OneEditAway
+	@Predictable
 	private String airportCode;
 	
-	@OneEditAway
-	@CaseInsensitive
+	@Predictable
 	private String airportName;
 	
-	@OneEditAway
-	@CaseInsensitive
+	@Predictable
 	private String countryName;
 
 }
