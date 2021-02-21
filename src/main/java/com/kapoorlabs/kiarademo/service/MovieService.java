@@ -1,5 +1,6 @@
 package com.kapoorlabs.kiarademo.service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,7 +25,7 @@ public class MovieService {
 		StoreSearch storeSearch = new StoreSearch();
 		
 		// Either you can pass a filterSet and get a List of HashMap
-		return storeSearch.query(movieStore.getMovieStore(), conditions, filterSet);
+		return storeSearch.query(movieStore.getMovieStore(), conditions, new HashSet<>());
 	}
 	
 	public List<Movie> query(List<Condition> conditions) {

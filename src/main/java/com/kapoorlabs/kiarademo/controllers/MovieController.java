@@ -16,7 +16,7 @@ import com.kapoorlabs.kiarademo.dto.ConditionDto;
 import com.kapoorlabs.kiarademo.service.MovieService;
 
 @RestController
-public class DemoController {
+public class MovieController {
 
 	@Autowired
 	MovieService movieService;

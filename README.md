@@ -62,7 +62,13 @@ You can use a tool like postman to Submit queries as a POST request.
 The URL of your application will be: -
 
 ```sh
-http://localhost:8080/movie
+http://localhost:8080/movie.html
+```
+
+The URL for Airport type ahead demo would be
+
+```sh
+http://localhost:8080/airport.html
 ```
 
 ##### Request Structure
