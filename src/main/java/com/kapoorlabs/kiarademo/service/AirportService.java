@@ -1,6 +1,5 @@
 package com.kapoorlabs.kiarademo.service;
 
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -35,6 +34,8 @@ public class AirportService {
 	public List<String> getTextPredictions(String searchString, Integer topNMatches) {
 
 		List<String> predictions = new LinkedList<>();
+		
+		searchString = searchString.toLowerCase();
 
 		predictions = SpellCheckUtil.getTextPredictions(searchString,
 				airportStore.getAirportStore().getSpellCheckTrie(), topNMatches);

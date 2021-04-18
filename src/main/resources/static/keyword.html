@@ -13,39 +13,35 @@
 	integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk"
 	crossorigin="anonymous">
 
-<title>Kiara Demo Project!</title>
+<title>Kiara keywords Demo Project!</title>
 <script
 	src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <script>
+    window.onload = () => {
+    	
+    	example = "kate winslet, leonardo Dicaprio, ship"
+    	$("textarea#query").val(example)
+    }
+    	
+        function sendQuery() {
 
+            var request = $("textarea#query").val();
+
+            fetch(`http://localhost:8080/movie/keywords/${request}`).then(function(response) {
+        	    response.json().then(function(data) {
+        	    	document.getElementById("result").innerHTML = JSON.stringify(data,undefined,4);
+        	       
+        	  })
+        	    
+         });
+            
+        }
+    
+
+
+
+            
         
-        
- function addSuggestions(data) {
- 	 
-	 document.getElementById("suggestions").innerHTML = "";
-	 
-     for (suggestion of data) {
-         const optionNode =  document.createElement("option");
-         optionNode.value = suggestion;
-         optionNode.appendChild(document.createTextNode(suggestion));
-         document.getElementById("suggestions").appendChild(optionNode);
-     }
-
-
- }
- 
- function getSuggestions() {
-	 const searchValue = document.getElementById("query").value;
-	 
-     fetch(`http://localhost:8080/typeAhead/airport/${searchValue}`).then(function(response) {
-    	    response.json().then(function(data) {
-    	    	addSuggestions(data)
-    	       
-    	  })
-    	    
-     });
-	 
- }
     </script>
 
 <style>
@@ -65,7 +61,7 @@
 				<nav aria-label="breadcrumb">
 					<ol class="breadcrumb">
 						<li class="breadcrumb-item active" aria-current="page">Kiara
-							Demo Project: Type ahead airport</li>
+							Keywords Demo Project: - Write your keywords separated by a "Comma" ,</li>
 					</ol>
 				</nav>
 			</div>
@@ -75,24 +71,28 @@
 			<div class="col-sm">
 				<div class="input-group ">
 
-					<input id="query" list="suggestions" class="form-control"
-						aria-label="text" onkeyUp="getSuggestions()">
-
-					<datalist id="suggestions">
-					</datalist>
-
-
+					<textarea id="query" rows="20" class="form-control"
+						aria-label="With textarea"></textarea>
 				</div>
 
 
 			</div>
+			<div class="col-sm">
+				<div class="row">
 
+
+					<pre id="result"> Results will appear here!</pre>
+
+				</div>
+			</div>
 		</div>
-
 		<div class="row">
+			<div class="col-sm">
+				<button onclick="sendQuery()" type="button"
+					class="btn btn-success btn-lg btn-block">Send Query</button>
+			</div>
 			<div class="col-sm"></div>
 		</div>
-
 
 
 		<!-- Optional JavaScript -->

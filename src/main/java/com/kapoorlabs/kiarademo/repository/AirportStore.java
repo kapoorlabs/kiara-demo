@@ -64,9 +64,9 @@ public class AirportStore {
 
 			while ((words = csvReader.readNext()) != null) {
 				Airport airport = new Airport();
-				airport.setAirportName(words[0]);
-				airport.setCountryName(words[1]);
-				airport.setAirportCode(words[2]);
+				airport.setAirportName(words[0].toLowerCase());
+				airport.setCountryName(words[1].toLowerCase());
+				airport.setAirportCode(words[2].toLowerCase());
 
 				airportList.add(airport);
 			}
