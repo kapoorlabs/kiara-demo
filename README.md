@@ -71,6 +71,12 @@ The URL for Airport type ahead demo would be
 http://localhost:8080/airport.html
 ```
 
+The URL for Movie keyword demo would be
+
+```sh
+http://localhost:8080/keyword.html
+```
+
 ##### Request Structure
 
 The request has only 2 following Json fields: -
