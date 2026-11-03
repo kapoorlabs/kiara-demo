@@ -1,6 +1,7 @@
 # Kiara DB Demo Project
 
-<img src="https://www.kapoorlabs.com/wp-content/uploads/2020/06/54624690-AA61-4E27-8305-9234C6861A86-e1593536390892.png"/>
+Spring Boot demo for [Kiara](https://github.com/kapoorlabs/kiara). To try Kiara without installing anything, the
+[browser demo](https://kapoor-labs.github.io/kiara-demo/) runs the TypeScript version ([kiara-ts](https://github.com/kapoorlabs/kiara-ts)) on 10,000 products.
 
 This java based springboot demo project will be of great help, to first time users of Kiara DB, in order for them, to get **started straight away with hands-on experience in building search queries for several use cases, using a sample built-in imdb movie database**. 
 Once you get comfortable and realise the value that Kiara DB provides, by giving freedom to search by anything, at high performance, without any composite indexes, you may then dig in for more advanced concepts and details.
@@ -33,7 +34,7 @@ https://projectlombok.org
 $ git clone https://github.com/kapoorlabs/kiara-demo.git
 ```
 
-#### Step 2: Go to you downloaded repo and compile project.
+#### Step 2: Go to your downloaded repo and compile project.
 ```sh
 $ cd kiara-demo/
 $ mvn clean install
@@ -53,7 +54,7 @@ $ java -jar target/kiara-demo-0.0.1-SNAPSHOT.jar
 #### Step 4: Enjoy querying!
 The movie database you will be querying is loaded from a csv file, which can be found at: -
 https://github.com/kapoorlabs/kiara-demo/blob/master/src/main/resources/movie_metadata.csv
-**if you make any changes to the csv file in your local repo, repeate Steps 2 and 3, which will load the new updated dataset.**
+**if you make any changes to the csv file in your local repo, repeat Steps 2 and 3, which will load the new updated dataset.**
 
 **For the simplicity of this demo we have chosen to demonstrate the queries through a REST API interface, but keep in mind that KIARA DB is a Java library, which can be used in any Java project and not just a REST API.**
 
