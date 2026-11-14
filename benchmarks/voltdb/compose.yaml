@@ -1,0 +1,17 @@
+services:
+  voltdb:
+    build: .
+    cpus: 4
+    mem_limit: 8g
+    shm_size: 1g
+    ports:
+      - "127.0.0.1:21212:21212"
+  worker:
+    profiles: ["execution"]
+    build:
+      context: ..
+      dockerfile: voltdb/Dockerfile.worker
+    cpus: 4
+    mem_limit: 8g
+    volumes:
+      - ${BENCHMARK_RESULTS_DIRECTORY:-../target/voltdb-execution}:/results

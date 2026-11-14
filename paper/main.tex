@@ -1,0 +1,111 @@
+% Kiara DB -- manuscript prepared for IEEE Access.
+%
+% Submission build: place the official IEEE Access template files
+% (ieeeaccess.cls, spotcolor.sty, logo.png, notaglinelogo.png, bullet.png and
+% the template fonts) next to this file. When ieeeaccess.cls is present it is
+% used automatically; otherwise the manuscript falls back to IEEEtran so the
+% content can be proofread with any standard TeX distribution.
+\IfFileExists{ieeeaccess.cls}{%
+  \documentclass{ieeeaccess}\newif\ifaccess\accesstrue
+}{%
+  \documentclass[journal]{IEEEtran}\newif\ifaccess\accessfalse
+}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{array}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{url}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.misc,fit}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\ifaccess\else
+  % Times-compatible text and math fonts for the IEEEtran proof build.
+  \usepackage[T1]{fontenc}
+  \usepackage{newtxtext}
+  \usepackage{newtxmath}
+  % Minimal shims for the IEEE Access front-matter macros.
+  \newcommand{\history}[1]{}
+  \newcommand{\doi}[1]{}
+  \newcommand{\tfootnote}[1]{}
+  \newcommand{\corresp}[1]{}
+  \newcommand{\headeretal}{et al.}
+  \newcommand{\EOD}{}
+  \newskip\titlepgskip
+\fi
+
+\newtheorem{definition}{Definition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+
+\newcommand{\kiara}{Kiara}
+\newcommand{\op}[1]{\texttt{\small #1}}
+\newcommand{\pre}{\mathrm{pre}}
+\newcommand{\post}{\mathrm{post}}
+\newcommand{\lev}{\mathrm{lev}}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+\newcommand{\PaperTitle}{Kiara DB: Composite-Index-Free Multi-Attribute Retrieval over Read-Mostly In-Memory Data with Depth-First-Numbered Attribute Tries}
+
+\newcommand{\PaperAbstract}{%
+Applications that serve read-mostly reference data, such as product catalogs, schedules, configuration rules, and inventories, must answer conjunctive queries over attribute subsets that users choose at run time. A composite index serves only the combinations that match its key prefix: covering every equality combination of $m$ attributes requires $\binom{m}{\lfloor m/2\rfloor}$ B-tree orderings, for example 252 for ten attributes. Kiara DB avoids composite indexes by storing records as root-to-leaf paths in an attribute-ordered trie, numbering nodes by depth-first traversal, and indexing each trie level separately; a conjunction then reduces to interval-containment joins between sorted posting lists. This paper extends our 2020 description of equality search to the complete system: typed scalar, temporal, and collection predicates; prefix-partitioned interval trees for stored ranges; eleven operators, including negation; an adaptive two-direction structural join over disjunctive posting-list collections; and a text layer with stemming, one-edit correction, prefix prediction, and coverage-maximizing cross-field keyword search. We evaluate Kiara 2.0.16 against Apache Lucene and against tuned and generic-index configurations of SQLite and VoltDB Community Edition, using an independent result oracle and repeated fresh-process trials comprising 1.04 million timing observations. On equivalent structured queries, Lucene's aggregate latency was 3.5--16.1 times Kiara's, and Kiara had lower aggregate latency than generic-index SQL configurations on most datasets, particularly for collection membership. Tuned SQL engines were faster for wide scalar conjunctions, broad windows, and some exclusions, and Kiara's 100{,}000-record builds were 26--38$\times$ slower than Lucene's. A cost model traces these outcomes to specific design choices and identifies concrete remedies.}
+
+\newcommand{\PaperKeywords}{Composite index, in-memory database, inverted index, interval encoding, multi-attribute search, read-mostly data, structural join, trie, type-ahead search, spelling correction, database benchmarking.}
+
+\begin{document}
+
+\history{Date of publication xxxx 00, 0000, date of current version xxxx 00, 0000.}
+\doi{10.1109/ACCESS.0000.DOI}
+
+\title{\PaperTitle}
+
+\ifaccess
+  \author{\uppercase{Anuj Kapoor}\authorrefmark{1}}
+  \address[1]{Kapoor Labs, USA (e-mail: anuj.kapoor@kapoorlabs.com)}
+  \tfootnote{This work received no external funding.}
+  \markboth{A. Kapoor: Composite-Index-Free Multi-Attribute Retrieval with Kiara DB}{A. Kapoor: Composite-Index-Free Multi-Attribute Retrieval with Kiara DB}
+  \corresp{Corresponding author: Anuj Kapoor (e-mail: anuj.kapoor@kapoorlabs.com).}
+  \begin{abstract}\PaperAbstract\end{abstract}
+  \begin{keywords}\PaperKeywords\end{keywords}
+  \titlepgskip=-21pt
+  \maketitle
+\else
+  \author{Anuj~Kapoor%
+    \thanks{A. Kapoor is with Kapoor Labs, USA (e-mail: anuj.kapoor@kapoorlabs.com).}%
+    \thanks{This work received no external funding.}}
+  \markboth{IEEE Access (manuscript in preparation)}{Kapoor: Composite-Index-Free Multi-Attribute Retrieval with Kiara DB}
+  \maketitle
+  \begin{abstract}\PaperAbstract\end{abstract}
+  \begin{IEEEkeywords}\PaperKeywords\end{IEEEkeywords}
+\fi
+
+\input{sections/01-introduction}
+\input{sections/02-related-work}
+\input{sections/03-model}
+\input{sections/04-system}
+\input{sections/05-cost-model}
+\input{sections/06-methodology}
+\input{sections/07-results}
+\input{sections/08-discussion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\begin{IEEEbiographynophoto}{Anuj Kapoor}
+is the founder of Kapoor Labs and the creator and maintainer of Kiara DB. His research interests include in-memory data structures, search, and query processing for read-mostly data. % TODO(author): add degrees, positions, and a photograph as required by IEEE Access.
+\end{IEEEbiographynophoto}
+
+\EOD
+
+\end{document}

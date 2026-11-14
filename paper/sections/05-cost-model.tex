@@ -1,0 +1,33 @@
+\section{Cost Model}
+\label{sec:cost}
+
+The worst-case bound of~\cite{kapoor2020efficient}, $O(KMN\log N)$, is too coarse to explain measured behavior. Here we model costs in terms of quantities that vary across queries. For a store, let $N$ be the number of records and $m$ the number of attributes. For a candidate collection $\mathcal{C}$, let $\|\mathcal{C}\|$ be its total number of nodes, $q_{\mathcal{C}}$ the number of lists (its fan-out), and $\Lambda_{\mathcal{C}}$ its longest list.
+
+\subsection{Build Cost}
+Trie insertion locates the child of the current node that carries the next value. In version~2.0.16 this is a \emph{linear} scan over the children of the current node that compares normalized string keys. Inserting a record costs $\sum_{\ell}\deg(v_{\ell-1})$, where each degree is the fan-out at insertion time. If a near-unique attribute, such as a record identifier, occupies level~1, the root fan-out grows to $N$ and loading costs $\Theta(N^2)$ comparisons. Hashing children by key reduces insertion to $O(Nm)$ expected time. The depth-first numbering visits each node once and appends it to one posting list per distinct key, which is linear in the index size. Sorting key arrays and building interval trees adds $O(d\log d)$ per level for $d$ distinct keys or intervals. Unique-first placement also disables prefix sharing below level~1, so the trie holds roughly $Nm$ nodes.
+
+The library documentation recommends placing high-cardinality attributes deep in the schema, where they cost little. Our benchmark schema instead places the identifier first, because one annotated record class is shared by all engines (Section~\ref{sec:methodology}). Under the quadratic model, a 10$\times$ larger fixture should build about 100$\times$ more slowly. We observed 113--159$\times$ for Kiara, from 1.15--1.50\,s at 10{,}000 records to 158--183\,s at 100{,}000 across two suites, against about 4$\times$ for Lucene (Section~\ref{sec:lucene}). The additional factor is consistent with growing garbage-collection and cache pressure. Kiara's TypeScript port keys children by hash map. In an equivalent-workload Java-versus-TypeScript benchmark that ships with the port~\cite{kiarats2026software}, it prepared 100{,}000 records in 0.76\,s, compared with 470\,s for the Java library. That benchmark uses a different schema and a different runtime, so the comparison is indicative only. It is nevertheless consistent with the view that the build cost is a property of the Java implementation rather than of the model.
+
+\subsection{Query Cost}
+\paragraph*{Candidate generation} Equality and \op{CONTAINS\_EITHER} cost one hash lookup per requested value. Comparisons and \op{BETWEEN} cost $O(\log d + q)$ and reference $q$ existing lists without copying them. \op{NOT\_EQUAL} costs $O(d_\ell)$. \op{NOT\_CONTAINS} costs $O(D_\ell+\sum_x|P_\ell(x)|)$ for $D_\ell$ distinct collection values, because it first visits the postings of each excluded element $x$. \op{CONTAINS\_ALL} repeatedly intersects sorted element lists with a two-pointer merge. A stabbing query costs $O(n)$ in the worst case, although pruning usually visits far fewer nodes, plus the merge of the stabbed lists when they must be combined.
+
+\paragraph*{Reduction} From Algorithm~\ref{alg:reduction},
+\begin{align}
+T_{\textsc{ProbeUp}}    &= O\!\left(\|\mathcal{C}\|\; q_{\mathcal{R}} \log \Lambda_{\mathcal{R}}\right), \label{eq:probeup}\\
+T_{\textsc{ExpandDown}} &= O\!\left(\|\mathcal{R}\|\; q_{\mathcal{C}} \log \Lambda_{\mathcal{C}} + q_{\mathcal{C}}\,\mathit{out}\right), \label{eq:expanddown}
+\end{align}
+where $\mathit{out}$ is the number of descendants emitted. The second term bounds the cost of merging each new run into the accumulated runs, one list at a time. The algorithm takes the cheaper side with respect to $\|\cdot\|$. When both sides have fan-out one, as with single-value equality or \op{CONTAINS\_ALL}, Eqs.~\eqref{eq:probeup}--\eqref{eq:expanddown} reduce to the classical smaller-probes-larger bound $O(\min(|A|,|B|)\log\max(|A|,|B|))$~\cite{baezayates2004fast}, applied to trie nodes rather than to records. When the side being probed has a large fan-out, the cost grows \emph{multiplicatively} in that fan-out. The direction is chosen by node counts alone, so a high-fan-out probed side is not avoided. Same-level intersection is linear in the sizes of both candidate sets regardless of how small their intersection is.
+
+\paragraph*{Materialization} Each result costs $O(m)$ pointer traversals plus object construction. A limit bounds only this phase.
+
+\subsection{Predicted Strengths and Weaknesses}
+\label{sec:predictions}
+The model yields six testable predictions, which Section~\ref{sec:results} examines.
+\begin{enumerate}
+\item[P1] \emph{Collection membership is cheap.} \op{CONTAINS\_ALL} and few-value \op{CONTAINS\_EITHER} have small fan-out and short lists. The normalized relational designs we evaluate instead join child rows and deduplicate or group them.
+\item[P2] \emph{High-fan-out predicates are expensive when the other side is large.} Negations over many distinct collections, and stabbing queries that hit many distinct stored intervals, produce thousands of lists. Pairing them with a broad predicate on another level triggers Eq.~\eqref{eq:expanddown} with a large $q_{\mathcal{C}}$.
+\item[P3] \emph{Same-attribute windows are expensive.} Writing a window as two comparisons on one high-cardinality attribute generates two broad candidate sets and intersects them, even when the window contains few records. A single \op{BETWEEN} generates only the qualifying keys.
+\item[P4] \emph{Conjunctions of broad scalar predicates scale poorly.} Ordering by level rather than by selectivity, together with the absence of compound access paths, makes the cost track the sum of candidate sizes. A compound B-tree seek tracks only the output size.
+\item[P5] \emph{Limits do not reduce candidate work.} A limit cannot make the candidate phase cheaper than the full query.
+\item[P6] \emph{Build time is quadratic under unique-first schemas,} as derived above.
+\end{enumerate}

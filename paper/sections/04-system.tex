@@ -1,0 +1,233 @@
+\section{Kiara DB: System Design}
+\label{sec:system}
+
+This section describes Kiara~2.0.16 as implemented in the open-source Java library~\cite{kiara2026software}. We name classes and annotations where doing so aids reproducibility.
+
+\subsection{Architecture and Lifecycle}
+Fig.~\ref{fig:architecture} summarizes the components. An application declares a store from an ordinary Java class (a plain old Java object, or POJO). Reflection over its declared fields yields the ordered schema $A$. Kiara uses the order returned by \texttt{getDeclaredFields}, which matches declaration order on the JVMs we used but is not guaranteed by the Java specification. Field annotations select each attribute's type interpretation and indexing behavior. Loading has two explicit phases. \texttt{loadTable} inserts each record into the trie. \texttt{prepareForSearch} then performs the depth-first numbering, builds every level index, sorts ordered key arrays, converts interval buffers into balanced interval trees, and marks the store committed. Queries against an uncommitted store are rejected. There is no update or delete API. Changes are applied by building a replacement store, which matches the read-mostly target.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners=2pt, align=center, font=\scriptsize, minimum width=40mm, minimum height=6.5mm, fill=white},
+  idx/.style={draw, rounded corners=1.5pt, align=center, font=\scriptsize, minimum width=19mm, minimum height=7mm, fill=white},
+  arr/.style={-{Stealth[length=1.6mm]}, thin},
+  node distance=4mm]
+\node[box] (pojo) {Annotated POJO class (ordered fields)};
+\node[box, below=of pojo] (load) {\texttt{loadTable}: trie insertion, normalization};
+\node[box, below=of load] (prep) {\texttt{prepareForSearch}: DFS numbering, index build};
+\node[idx, below=7mm of prep] (ord) {Sorted key\\arrays};
+\node[idx, left=1.5mm of ord] (hash) {Hash posting\\lists $I_\ell$};
+\node[idx, right=1.5mm of ord] (itv) {Interval trees\\per prefix};
+\node[idx, below=1.5mm of hash, xshift=10.25mm] (full) {Full-collection\\key index};
+\node[idx, right=1.5mm of full] (spell) {Character trie\\(dictionary)};
+\node[draw, dashed, rounded corners=3pt, inner sep=2.5mm, fit=(hash)(ord)(itv)(full)(spell), label={[font=\scriptsize\itshape, anchor=south east]north east:read-only indexes}] (group) {};
+\node[box, below=5mm of group, minimum width=58mm] (search) {\texttt{StoreSearch}: conditions, projection, limit\\\texttt{KeywordSearch}: best match, minimum match};
+\draw[arr] (pojo) -- (load);
+\draw[arr] (load) -- (prep);
+\draw[arr] (prep) -- (group.north);
+\draw[arr] (group.south) -- (search);
+\end{tikzpicture}
+\caption{Kiara components. All index structures are built once, after loading, and are read-only during search.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Schema Declaration and Value Normalization}
+Table~\ref{tab:annotations} lists the seventeen indexing annotations. (The library spells several of them \emph{Seperated}.) Unannotated fields of string, character, Boolean, enumeration, and primitive or boxed numeric types are indexed as scalars. Normalization at load time and at query time maps every value to a key in one of two key spaces:
+\begin{itemize}
+\item \emph{String keys}: values are trimmed, lower-cased under \texttt{@CaseInsensitive}, stemmed under \texttt{@StemmedIndex}, and empty or null values map to a dedicated missing-value sentinel. Enumerations and Booleans use their textual form.
+\item \emph{Numeric keys}: numeric scalars and numeric list elements map to 64-bit integers. Dates map to epoch days and date-times to UTC epoch seconds, using the format given in the annotation. Missing values map to a long sentinel.
+\end{itemize}
+The numeric mapping truncates fractional values through \texttt{Double.longValue()}, so 19.00, 19.50, and 19.99 share one key. Our oracle exposes the resulting differences in Section~\ref{sec:correctness}, and Section~\ref{sec:future} discusses an exact encoding. Node values retain the original number for result reconstruction.
+
+\begin{table}[t]
+\centering
+\caption{Indexing Annotations in Kiara 2.0.16}
+\label{tab:annotations}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{@{}P{33mm}P{50mm}@{}}
+\toprule
+Annotation & Effect on indexing \\
+\midrule
+(none) & Scalar key, hash posting lists, sorted key array \\
+\texttt{CaseInsensitive} & Lower-case at load and query time \\
+\texttt{IgnoreIndex} & Stored and returned, but not searchable \\
+\texttt{DateFormat}, \texttt{DateTimeFormat} & Epoch-day / UTC epoch-second numeric keys \\
+\texttt{CS\{Strings, Numbers, Dates, DateTimes\}} & One key per element, plus a full-collection key \\
+\texttt{NumericRange}, \texttt{DateRange}, \texttt{DateTimeRange} & Stored interval, optionally with a string prefix; prefix-partitioned interval tree \\
+\texttt{CS\{NumericRanges, DateRanges, DateTimeRanges\}} & One stored interval per element \\
+\texttt{StemmedIndex} & Snowball English stem at load and query time \\
+\texttt{OneEditAway} & Keys added to the shared character trie used for correction and prediction \\
+\texttt{Predictable} & Same effect as \texttt{OneEditAway} \\
+\bottomrule
+\multicolumn{2}{@{}p{0.95\columnwidth}@{}}{\footnotesize CS abbreviates the \texttt{CommaSeperated} prefix, so \texttt{CS\{Strings\}} denotes \texttt{CommaSeperatedStrings}.}
+\end{tabular}
+\end{table}
+
+\subsection{Multi-Valued Attributes}
+A collection-valued attribute, such as tags, sizes, observed markets, or a list of dates, occupies a single trie level. Its node value is the normalized collection. During the depth-first traversal, the node is appended to the posting list of \emph{every distinct element} and, separately, to a \emph{full-collection} index keyed by the whole collection. A node can therefore appear in several posting lists of the same level. Lemma~\ref{lem:levelorder} still guarantees that each list is sorted, because each list holds distinct same-level nodes appended in post-visit order. This extension keeps one logical index per attribute while supporting membership predicates without unnesting records into child rows, as the normalized relational designs evaluated in Section~\ref{sec:methodology} require.
+
+\subsection{Ordered Keys for Comparisons}
+Each level also keeps an array of its distinct keys, which is sorted once during preparation. \op{LESS\_THAN} and \op{LESS\_THAN\_EQUAL} scan the array forward until the bound fails. \op{GREATER\_THAN} and \op{GREATER\_THAN\_EQUAL} scan backward. \op{BETWEEN} binary-searches the lower bound and scans forward. Each qualifying key contributes its posting list to the candidate set. The work of a comparison is therefore proportional to the number of qualifying \emph{distinct keys}, not to the number of qualifying records. That cost is small for low-cardinality attributes and large for high-cardinality ones such as timestamps. A deprecated AVL-tree alternative (\texttt{SBTree}) remains in the code base but is unused.
+
+\subsection{Stored Intervals}
+Interval-valued attributes store ranges such as a capacity band \texttt{100-250}, a season \texttt{2026-06-01..2026-08-31}, or a prefixed range \texttt{AA10-1004}. With \texttt{numericStartPos}$=2$, the last example is partitioned under prefix \texttt{AA} with numeric interval $[10,1004]$. Each level keeps one interval tree per prefix. Preparation sorts the distinct intervals by lower endpoint and builds a perfectly balanced binary search tree by recursive midpoint selection. It then augments every node with the maximum upper endpoint in its subtrees, which is the classical interval-tree augmentation~\cite{cormen2009introduction}. A point query on a stored interval, the stabbing query used by \op{CONTAINS\_EITHER} and \op{CONTAINS\_ALL}, skips the left subtree when the point lies below a node's lower endpoint. It prunes both subtrees when the point exceeds the maximum upper endpoint recorded for them. Pruning is effective in practice, but this traversal's worst case remains $O(n)$ for $n$ distinct intervals. Each stabbed interval maps through its canonical string to a posting list of trie nodes. For lists of intervals, every element is indexed separately, so the endpoints of one interval are never paired with those of another, which preserves interval correlation.
+
+Kiara~2.0.15 compared interval lower bounds with reference equality on boxed \texttt{Long} values. Java caches boxed values only in a small range, so the comparator was inconsistent for repeated large lower bounds such as epoch seconds. Sorting larger schedules then failed with a ``comparison method violates its general contract'' error. Version~2.0.16 compares the primitive values. Our benchmark exposed this defect, and its fix is a precondition for the schedule results in Section~\ref{sec:results}.
+
+\subsection{Operators}
+Table~\ref{tab:operators} lists the eleven operators and how each produces its candidate set at one level. The rightmost column is the candidate \emph{fan-out} $q$, the number of sorted posting lists in the candidate collection. Section~\ref{sec:cost} shows that $q$ governs much of the cost of a query. Negations are evaluated over the key space of the level rather than as a set difference over records. \op{NOT\_EQUAL} enumerates every key except the excluded ones. \op{NOT\_CONTAINS}, which applies only to collections, first marks every full-collection key that contains an excluded element and then enumerates the remaining full-collection keys. Comparisons and \op{BETWEEN} on interval attributes are rejected. A predicate on a missing value is expressed with the null literal, which normalization maps to the sentinel key.
+
+\begin{table*}[t]
+\centering
+\caption{Operators, Candidate Generation, and Candidate Fan-Out at One Level}
+\label{tab:operators}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{@{}P{46mm}P{88mm}P{36mm}@{}}
+\toprule
+Operator & Candidate generation & Fan-out $q$ (lists) \\
+\midrule
+\op{EQUAL} & Hash lookup per requested value (interval attributes: canonical interval string) & $\le$ requested values \\
+\op{CONTAINS\_EITHER} & As \op{EQUAL}; on interval attributes, one stabbing query per requested point & requested values; stabbed intervals \\
+\op{CONTAINS\_EITHER\_}\allowbreak\op{INCLUDING\_NULL} & Rewritten to \op{CONTAINS\_EITHER} over the requested values plus the missing-value key & requested values $+1$ \\
+\op{CONTAINS\_ALL} & Intersection of per-element lists; on interval attributes, stabbed lists are merged per point and then intersected & $1$ \\
+\op{NOT\_EQUAL} & Enumerate all keys of the level except the requested values & distinct keys $-$ requested \\
+\op{NOT\_CONTAINS} (collections) & Mark full-collection keys containing a requested element; enumerate the rest & distinct collections $-$ marked \\
+\op{LESS\_THAN}, \op{LESS\_THAN\_EQUAL} & Forward scan of the sorted key array & qualifying distinct keys \\
+\op{GREATER\_THAN}, \op{GREATER\_THAN\_EQUAL} & Backward scan of the sorted key array & qualifying distinct keys \\
+\op{BETWEEN} & Binary search to the lower bound, then forward scan (inclusive) & qualifying distinct keys \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Query Evaluation over Disjunctive Posting-List Collections}
+\label{sec:reduction}
+Kiara represents every intermediate result as a \emph{collection} $\mathcal{C}=\{L_1,\dots,L_q\}$ of sorted node lists whose union is the candidate set. Disjunctive predicates such as multi-value \op{EQUAL}, comparisons, and negations therefore require no merge step: each qualifying key contributes its existing posting list by reference. Algorithm~\ref{alg:reduction} shows the evaluation, which proceeds in three steps.
+\begin{enumerate}
+\item Conditions are sorted by level, so the trie is visited from the root downward. In version~2.0.16 the order is structural; it does not depend on selectivity.
+\item Several conditions on the same level are combined by hash-based intersection of their candidate sets.
+\item Consecutive constrained levels are combined by a structural join that adapts its direction to the candidate sizes. If the deeper candidate set is smaller, \textsc{ProbeUp} keeps each deeper node for which some current list contains an ancestor, found by binary search on interval containment (Lemma~\ref{lem:ancestry}). Otherwise, \textsc{ExpandDown} visits each current node and, in each deeper list, binary-searches the contiguous run of its descendants (Lemma~\ref{lem:levelorder}), merging the runs found in different lists.
+\end{enumerate}
+A hash set suppresses duplicate visits to nodes of the shallower side, because a node can occur in several lists. A descendant that occurs in several deeper lists can be emitted more than once, and such duplicates are removed during materialization. An empty candidate set terminates evaluation early. The 2020 design used only the \textsc{ProbeUp} direction over single lists. The collection representation and \textsc{ExpandDown} were added to support the operators of Table~\ref{tab:operators}.
+
+\begin{algorithm}[t]
+\caption{Adaptive Level-Wise Reduction}
+\label{alg:reduction}
+\begin{algorithmic}[1]
+\Require Conditions grouped by level; level indexes
+\Ensure Collection $\mathcal{R}$ of sorted node lists at the deepest constrained level
+\State $\mathcal{R}\gets\bot$
+\For{each constrained level $\ell$, in increasing order}
+  \State $\mathcal{C}\gets\textsc{Candidates}(q_{\ell,1})$ \Comment{Table~\ref{tab:operators}}
+  \For{each further condition $q_{\ell,j}$ on level $\ell$}
+    \State $\mathcal{C}\gets\textsc{HashIntersect}(\mathcal{C},\textsc{Candidates}(q_{\ell,j}))$
+  \EndFor
+  \If{$\mathcal{C}=\emptyset$}
+    \State \Return $\emptyset$
+  \EndIf
+  \If{$\mathcal{R}=\bot$}
+    \State $\mathcal{R}\gets\mathcal{C}$
+  \ElsIf{$\|\mathcal{C}\|<\|\mathcal{R}\|$} \Comment{$\|\cdot\|$: total nodes}
+    \State $\mathcal{R}\gets\textsc{ProbeUp}(\mathcal{R},\mathcal{C})$
+  \Else
+    \State $\mathcal{R}\gets\textsc{ExpandDown}(\mathcal{R},\mathcal{C})$
+  \EndIf
+\EndFor
+\State \Return $\mathcal{R}$
+\Statex
+\Function{ProbeUp}{$\mathcal{R},\mathcal{C}$}
+  \For{each distinct node $v$ in the lists of $\mathcal{C}$}
+    \If{a binary search finds an ancestor of $v$ in some $L\in\mathcal{R}$}
+      \State emit $v$
+    \EndIf
+  \EndFor
+\EndFunction
+\Function{ExpandDown}{$\mathcal{R},\mathcal{C}$}
+  \For{each distinct node $u$ in the lists of $\mathcal{R}$}
+    \State $\mathit{runs}\gets$ descendant run of $u$ in each $L\in\mathcal{C}$
+    \State emit the $\pre$-ordered merge of $\mathit{runs}$
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Result Materialization}
+For each node $v\in\mathcal{R}$, Kiara walks parent pointers upward to the shallowest projected attribute. It then enumerates every root-to-leaf continuation below $v$ by recursive descent, emitting one result per leaf path. Results are either reconstructed POJOs, populated through reflection, or maps restricted to the requested projection. An optional limit stops emission once reached. The limit is applied during materialization, after the candidate collection has been fully computed. Section~\ref{sec:cost} shows why this matters for broad queries.
+
+\subsection{Text Retrieval Layer}
+\label{sec:text}
+Interactive search must tolerate how people type. Kiara builds its text features from the same level indexes rather than from a separate document index.
+
+\paragraph*{Tokenization and stemming}
+Keyword input is split on single space characters after punctuation is replaced by spaces and brackets are removed, and duplicate terms are discarded. Despite its name, the routine \texttt{removeStopWords} performs no stop-word filtering. Attributes annotated with \texttt{@StemmedIndex} store Snowball English stems~\cite{porter2001snowball} of their keys, and query terms are stemmed per attribute before lookup. A query term may therefore match the stemmed form in one attribute and the literal form in another.
+
+\paragraph*{One-edit correction}
+Keys of attributes annotated with \texttt{@OneEditAway} or \texttt{@Predictable} are inserted into a character trie with a terminal marker. Correction applies only to terms longer than three characters and walks the trie along the input. At the first mismatch, it tries a deletion of the input character, then an insertion, by matching the input character against grandchildren of the current node, and then a substitution, by matching the next input character against grandchildren. At the end of the input it may also complete a word one character short. It fails if more than one edit is required. The walk is greedy and follows a single path: it returns at most one correction, at Levenshtein distance one~\cite{levenshtein1966binary}, in $O(|w|\,\sigma)$ time for alphabet fan-out $\sigma$. It does not guarantee that a correction is found whenever one exists, and it does not rank alternatives. Levenshtein automata~\cite{schulz2002fast} or BK-trees~\cite{burkhard1973approaches} trade more index work for completeness. Kiara chooses predictability and constant memory per dictionary character.
+
+\paragraph*{Prefix prediction}
+Type-ahead walks the character trie to the node for the typed prefix and then traverses its subtree breadth-first. It emits completed words in non-decreasing length up to a requested count. The cost is $O(|p|)$ plus the number of trie nodes visited. Predictions are dictionary words, not records, which keeps suggestion separate from filtering. Predictions are not ranked by popularity.
+
+\paragraph*{Coverage-maximizing keyword search}
+\texttt{KeywordSearch.getBestMatch} accepts free text and optional hard conditions, for example ``in stock'' or ``region = EMEA''. It must decide which attribute each keyword refers to. Algorithm~\ref{alg:keyword} gives a simplified form of the procedure. Each keyword is first bound to the set $F(w)$ of levels whose index contains its form after that level's normalization. A keyword with no binding is replaced by its one-edit correction when one exists. Each assignment of keywords to levels then defines a structured conjunction, with one \op{CONTAINS\_ALL} condition per level plus the hard conditions, which is evaluated by Algorithm~\ref{alg:reduction}. Conjunctions are tried in order of decreasing keyword coverage, and the first non-empty result is returned together with the keywords it satisfied. This semantics is \emph{coverage-first}: a result that matches more of the user's words always wins, and dropped words are reported rather than silently ignored. Within one coverage level, the result depends on enumeration order, which follows hash-based collections and is therefore implementation-dependent; Kiara does not compute TF-IDF or BM25 scores~\cite{robertson2009bm25}. The number of conjunctions is bounded by $\prod_{w}(|F(w)|+1)$, and a constructor parameter caps the number of keywords considered.
+
+Version~2.0.16 has one limitation that matters for correctness. Kiara records \emph{one} representative form $\tilde w$ per keyword: the normalized form from the last level that matched. It then queries every bound level with $\tilde w$. When a term matches a raw attribute literally and a stemmed attribute through its stem, conditions on the raw attribute receive the stem, which can miss records (Section~\ref{sec:correctness}). Retaining a normalized key per bound level removes this defect.
+
+\texttt{getMinimumMatch} post-filters best-match results with a cardinality test. A record passes when the number of distinct populated non-numeric attribute values equals the number of matched keywords. The test is intended for hierarchical configuration lookup, where the most specific rule should match a request and broader rules should not. However, it compares counts rather than value sets and does not tokenize collection values, so it only approximates that semantics.
+
+\begin{algorithm}[t]
+\caption{Coverage-Maximizing Keyword Search (Simplified)}
+\label{alg:keyword}
+\begin{algorithmic}[1]
+\Require Text $s$, hard conditions $H$, limit $\lambda$
+\Ensure Matched keywords and records
+\State $W\gets\textsc{Tokenize}(s)$
+\For{each $w\in W$}
+  \State $F(w)\gets\{\ell : \nu_\ell(w)\in\mathrm{keys}(I_\ell)\}$ \Comment{$\nu_\ell$: case folding, stemming}
+  \State $\tilde w\gets\nu_{\max F(w)}(w)$ \Comment{one form per keyword in 2.0.16}
+  \If{$F(w)=\emptyset$ and $w'\gets\textsc{OneEdit}(w)$ exists, $w'\notin W$}
+    \State replace $w$ by $w'$; recompute $F(w')$ and $\tilde w'$
+  \EndIf
+\EndFor
+\State $W^\ast\gets\{w : F(w)\neq\emptyset\}$
+\For{$c\gets|W^\ast|$ \textbf{down to} $1$}
+  \For{each assignment $\sigma$ of $c$ keywords to levels with $\sigma(w)\in F(w)$}
+    \State $Q\gets H\cup\{\op{CONTAINS\_ALL}(\ell,\{\tilde w:\sigma(w)=\ell\})\}_\ell$
+    \State $R\gets\textsc{Search}(Q,\lambda)$ \Comment{Algorithm~\ref{alg:reduction}}
+    \If{$R\neq\emptyset$}
+      \State \Return $(\mathrm{dom}(\sigma), R)$
+    \EndIf
+  \EndFor
+\EndFor
+\State \Return $(\emptyset,\emptyset)$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Evolution of the Implementation}
+Table~\ref{tab:releases} summarizes the releases. Version~1.0.0, contemporaneous with~\cite{kapoor2020efficient}, already contained the typed, collection, and interval machinery, but that article described only equality search. The text layer and the remaining interface features followed in 2020--2021. Maintenance releases in 2026 modernized dependencies and fixed the interval comparator. The repository contains 461 JUnit test methods in 45 test files. A TypeScript port~\cite{kiarats2026software}, aligned with version~2.0.16 through live Java-versus-TypeScript differential tests, shows that the model is not tied to the JVM.
+
+\begin{table}[t]
+\centering
+\caption{Release History of the Java Library}
+\label{tab:releases}
+\setlength{\tabcolsep}{2.5pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}llP{56mm}@{}}
+\toprule
+Version & Date & Principal change \\
+\midrule
+1.0.0 & 2020-05 & Typed, collection, interval attributes; 11 operators \\
+1.2.0 & 2020-11 & Keyword search, Snowball stemming, one-edit trie \\
+2.0.0 & 2021-01 & Type-checked loading; keyword-search API \\
+2.0.4 & 2021-01 & Thread-safe keyword search \\
+2.0.5--6 & 2021-02 & Result limits for structured and keyword search \\
+2.0.8 & 2021-02 & Case-insensitive attributes \\
+2.0.9 & 2021-02 & \texttt{@Predictable} type-ahead \\
+2.0.10 & 2021-03 & Minimum-match keyword search \\
+2.0.12 & 2021-05 & Enumeration attributes \\
+2.0.15 & 2026-10 & Dependency and build modernization \\
+2.0.16 & 2026-10 & Interval comparator contract fix \\
+\bottomrule
+\end{tabular}
+\end{table}

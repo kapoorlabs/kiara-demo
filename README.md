@@ -3,6 +3,96 @@
 Spring Boot demo for [Kiara](https://github.com/kapoorlabs/kiara). To try Kiara without installing anything, the
 [browser demo](https://kapoor-labs.github.io/kiara-demo/) runs the TypeScript version ([kiara-ts](https://github.com/kapoorlabs/kiara-ts)) on 10,000 products.
 
+## Java Kiara vs Apache Lucene benchmark
+
+See the [benchmark report](docs/lucene-comparison.md) for measured feature coverage,
+query latency, index build time, retained heap, methodology and limitations.
+The demo and [standalone benchmark project](benchmarks/pom.xml) use Kiara 2.0.16.
+The demo targets Java 8; the benchmark uses Lucene 10.5.2 and requires JDK 21+.
+The checked-in report and raw results were regenerated with published Kiara
+2.0.16 and Lucene 10.5.2. All 30 workers built successfully, including both
+schedule sizes that previously failed with 2.0.15: 738 scenario/fork measurements
+and 37,110 raw latency samples were recorded across the full matrix.
+The default workload matrix matches the TypeScript report's five dataset entries:
+real retail (3,788 products), synthetic catalogs (10,000 and 100,000 products),
+and synthetic schedules (10,000 and 100,000 events), each with distinct queries.
+It covers all 11 Kiara query operators and all 17 indexing annotations, with
+independent result-set checks before timing. Raw measurements are retained in
+[benchmarks/lucene-comparison.json](benchmarks/lucene-comparison.json).
+Decimal-precision and keyword-result differences are documented in the report
+and excluded from equivalent-query speed ratios. Text precision and hard-filter
+checks are reported separately rather than assuming both engines return the same
+records.
+Dataset indexing failures are also recorded explicitly; blocked queries have no
+fabricated latency or memory measurements, and the other engine still runs.
+
+From the repository root in PowerShell, with `JAVA_HOME` pointing to JDK 21+:
+
+```powershell
+.\mvnw.cmd -f benchmarks\pom.xml clean verify
+& "$env:JAVA_HOME\bin\java.exe" -jar benchmarks\target\kiara-lucene-benchmark-1.0-SNAPSHOT.jar
+```
+
+This regenerates the report and raw data using three isolated JVM runs per engine
+for each of the five datasets (30 workers). See the report for smaller smoke-run
+options and dataset selection. Full-result materialization can make the complete run lengthy.
+
+## Kiara vs VoltDB Community Edition benchmark
+
+The [execution-only comparison](docs/voltdb-query-execution.md) measures Kiara's
+search API and server-side precompiled VoltDB procedures, excluding networking
+and client decoding. Both run in Linux containers. SQL/index tuning, execution
+plans, correctness checks and fresh measurement trials are retained in the
+[execution evidence](benchmarks/voltdb-query-execution.json). Result creation is
+included, with different Java-map/VoltTable representations; this is not a pure
+index-traversal measurement or a claim about current commercial VoltDB.
+
+The [VoltDB findings and detailed interpretation](docs/voltdb-comparison.md)
+explain the mixed execution-only results, actual plans, statistical uncertainty,
+and publication limits. Neither engine is uniformly faster.
+The [historical end-to-end comparison](docs/voltdb-end-to-end.md) and its
+[raw results](benchmarks/voltdb-comparison.json) remain separate: those timings
+include local Docker client/server communication and must not be mixed with the
+execution-only numbers.
+
+See the [local Docker setup and reproduction instructions](benchmarks/voltdb/README.md).
+
+The execution harness also supports a separate generic-index VoltDB baseline:
+`-Profile generic` retains generic indexes, removes workload-specific indexes,
+and uses fixed SQL without timing-selected alternatives. The original five
+fixtures and both wide-filter fixtures can be run together. Its report and raw
+evidence are generated separately only after successful collection and verification;
+native query timeouts are recorded without fabricated latencies or symmetric
+deadline-win claims.
+The legacy server is isolated on loopback and intended only for this experiment.
+
+## Kiara vs SQLite in-memory benchmark
+
+The [SQLite comparison](docs/sqlite-comparison.md) uses the same five fixtures,
+fresh trials for both engines, prepared SQLite statements, covering/compound
+indexes, full ANALYZE, frozen query plans, and independent correctness checks.
+Both engines eagerly produce the same Java map shapes. SQLite JDBC/JNI and
+cursor costs are included, so this is embedded API execution rather than pure
+native SQL time. It does not measure file-backed reads or transactional throughput.
+
+See [reproduction and limitations](benchmarks/sqlite/README.md) and
+[raw SQLite evidence](benchmarks/sqlite-comparison.json).
+
+The [separate generic-index SQLite comparison](docs/sqlite-untuned-comparison.md)
+retains basic indexes but omits workload-specific compound indexes, SQL alternative
+selection and explicit ANALYZE. It uses fresh measurements for both engines and
+keeps the [tuned report's disclosure](docs/sqlite-comparison.md#tuning-disclosure-what-was-done-and-what-it-cost)
+and results intact. See [generic raw evidence](benchmarks/sqlite-untuned-comparison.json).
+
+## Wide-filter experiment
+
+The [separate wide-filter harness](benchmarks/wide/README.md) tests 2, 4, 8, 12
+and 16 distinct filtered attributes, mixed CONTAINS_EITHER/CONTAINS_ALL operators,
+and three expected selectivities against Lucene, tuned VoltDB CE, tuned SQLite
+and generic-index SQLite. Historical reports are not overwritten. See the
+methodology for timing-boundary differences and publication limitations.
+
+
 This java based springboot demo project will be of great help, to first time users of Kiara DB, in order for them, to get **started straight away with hands-on experience in building search queries for several use cases, using a sample built-in imdb movie database**. 
 Once you get comfortable and realise the value that Kiara DB provides, by giving freedom to search by anything, at high performance, without any composite indexes, you may then dig in for more advanced concepts and details.
 

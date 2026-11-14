@@ -1,0 +1,27 @@
+\section{Introduction}
+\label{sec:introduction}
+
+\IEEEPARstart{M}{any} applications keep a moderately sized, read-mostly dataset in memory and query it far more often than they change it. Examples include product catalogs behind faceted storefronts, flight and event schedules, pricing and configuration rules, and parts inventories. Their queries share a distinctive shape. Each query is a conjunction of predicates, but \emph{which} attributes participate is chosen at run time by a user interface, a rules engine, or a calling service. A shopper may filter by brand and size; the next request may filter by region, price band, and an included date. The set of attribute combinations that must be fast is therefore open-ended.
+
+Conventional physical designs handle this poorly. A hash index serves exactly one attribute set. A composite B-tree~\cite{bayer1972organization,comer1979ubiquitous} serves the attribute sets that form a prefix of its key order. Index advisors~\cite{chaudhuri1997efficient,valentin2000db2} select a small set of such indexes for a \emph{known} workload, but an unpredictable workload defeats them by construction. Covering every equality combination with prefix seeks requires $\binom{m}{\lfloor m/2\rfloor}$ distinct key orders for $m$ attributes (Proposition~\ref{prop:indexcount}), which is 252 orders for ten attributes and 184{,}756 for twenty. Engines instead fall back to single-attribute indexes combined by row-identifier intersection~\cite{oneil1997improved,lemire2016roaring}, to inverted-index engines such as Lucene~\cite{mccandless2010lucene}, or to scanning.
+
+Our 2020 article~\cite{kapoor2020efficient} proposed a different organization for static in-memory data, later released as the open-source Java library \emph{Kiara DB}~\cite{kiara2026software}. Records are inserted as root-to-leaf paths in a trie whose levels correspond to attributes. A depth-first traversal assigns each node an interval of visit numbers, so that ancestry becomes interval containment. Each level receives one hash index from values to posting lists of trie nodes, and a conjunction over any subset of attributes is answered by joining those posting lists through interval containment. Only $m$ logical indexes are needed, regardless of which combinations are queried.
+
+That article described equality conjunctions and a worst-case bound. It left four questions open, which this paper answers:
+\begin{enumerate}
+\item How does the model extend beyond equality to ordered comparisons, temporal values, multi-valued attributes, stored intervals, missing values, and negation, while keeping one logical index per attribute?
+\item Can the same structures support the text-oriented access patterns that interactive applications need, such as typo tolerance, stemming, type-ahead, and keyword queries whose target attributes are unknown?
+\item Which query shapes does the design favor or penalize, and why?
+\item How does a faithful implementation compare with mature engines under careful, correctness-checked measurement?
+\end{enumerate}
+
+\subsection{Contributions}
+\begin{itemize}
+\item \textbf{Formal model and a corrected bound.} We formalize the attribute trie, prove correctness of level-wise reduction, and show that the minimum number of composite B-tree orders covering all equality subsets as prefixes is $\binom{m}{\lfloor m/2\rfloor}$, correcting the count reported in~\cite{kapoor2020efficient} (Section~\ref{sec:model}).
+\item \textbf{A typed, multi-valued, interval-aware extension.} We describe how Kiara indexes numeric, temporal, enumerated, Boolean, case-folded, collection-valued, and interval-valued attributes; its eleven operators; prefix-partitioned augmented interval trees; and an adaptive, two-direction structural join over \emph{disjunctive posting-list collections} (Section~\ref{sec:system}).
+\item \textbf{An integrated text layer.} We describe index-time and query-time Snowball stemming, one-edit correction over a character trie, breadth-first prefix prediction, and a coverage-maximizing keyword search that discovers which attributes each keyword binds to and composes the result with hard structured filters (Section~\ref{sec:text}).
+\item \textbf{A cost model.} We derive per-operator candidate fan-out and reduction costs, and the build cost of trie insertion. The model explains both Kiara's largest wins and its largest losses in our experiments (Section~\ref{sec:cost}).
+\item \textbf{A transparent multi-engine evaluation.} Seven benchmark suites compare Kiara~2.0.16 with Apache Lucene~10.5.2, SQLite~3.53.4, and VoltDB Community Edition~10.1.1. SQLite and VoltDB are evaluated in expert-tuned and generic-index configurations, and VoltDB also in a client--server configuration. Every timed result is validated against an independent scan oracle. Semantic mismatches are reported, not hidden (Sections~\ref{sec:methodology}--\ref{sec:results}).
+\end{itemize}
+
+The rest of the paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:model} formalizes the model. Section~\ref{sec:system} presents the system and Section~\ref{sec:cost} its cost model. Sections~\ref{sec:methodology} and~\ref{sec:results} describe the evaluation. Section~\ref{sec:discussion} discusses implications, threats to validity, limitations, and future work, and concludes the paper.

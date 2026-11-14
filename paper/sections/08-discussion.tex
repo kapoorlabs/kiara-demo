@@ -1,0 +1,43 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{When Is the Attribute Trie the Right Choice?}
+The results support a precise rather than a universal claim. Kiara answers \emph{any} conjunction through one logical index per attribute. It is strongest when combinations are unpredictable, predicates involve collection membership or point-in-interval tests, and queries are moderately selective. Under those conditions it outperformed Lucene on every dataset, generic-index SQL configurations on 11 of 12 dataset entries, and even tuned VoltDB on every collection-family width in the wide-filter suite. Its text layer adds typo correction, stemming, prediction, and attribute-discovering keyword search over the same indexes, with no second engine to synchronize.
+
+Conversely, when a few hot combinations are known in advance, a compound index serves them better. That is the case Proposition~\ref{prop:indexcount} excludes only when \emph{all} combinations must be served. The same holds for broad scalar windows, top-$k$ queries with limits, frequent rebuilds, tight memory budgets, and relevance-ranked text search. A practical consequence is that the approaches compose. An application can serve its few known hot combinations with dedicated access paths and route the long tail of ad hoc combinations to an attribute trie.
+
+The preparation cost should be amortized explicitly. If a rebuild costs $\Delta B$ more than an alternative and saves $\Delta t$ per query, preparation pays off after $n^\ast=\Delta B/\Delta t$ queries per rebuild. On the 100,000-product catalog, for example, Kiara's additional build time over Lucene was about 178\,s. A workload saving 1\,ms per query would therefore need about 178,000 queries between rebuilds. The build-time remedy below would change this calculation substantially.
+
+\subsection{Threats to Validity}
+\emph{Internal validity.} All suites ran on a shared, virtualized host whose scheduling and thermal state were not controlled. VoltDB required JDK~11 while Kiara ran on JDK~21. The harness is a standalone measurement program rather than JMH. Five trials provide only exploratory intervals. Output representations differ: Java maps, Lucene stored fields, and \texttt{VoltTable} objects are not equal-cost encodings. Tuning used the evaluation fixtures, which favors the tuned opponents. The shared record class places a unique identifier at the first trie level. This layout is unfavorable to Kiara's build time and memory. It also removes nearly all prefix sharing, so it can change candidate sizes and therefore query costs. The experiments thus evaluate a largely degenerate trie layout rather than a schema ordered as the library documentation recommends.
+
+\emph{External validity.} Catalog, schedule, and wide fixtures are synthetic, and the wide fixture uses mostly independent attributes. Real data with correlated attributes may benefit more from prefix sharing, or less. All measurements are single-threaded, warm, and in memory. We did not measure concurrent throughput, cold starts, durability, updates, or distributed operation.
+
+\emph{Construct validity.} Equal-weight geometric means summarize ratios but do not represent any particular application's query mix. Sensitivity checks in the raw reports show that removing the most extreme query ratio can reverse a near-unity aggregate.
+
+\emph{Conflict of interest.} The author created Kiara. To mitigate this, opponents received expert tuning while Kiara received none; correctness was enforced by an independent oracle; unfavorable results are reported prominently; and all raw data, plans, and harness code are published for independent replication.
+
+\subsection{Limitations and Future Work}
+\label{sec:future}
+Each weakness identified in Section~\ref{sec:predictions} suggests a concrete remedy:
+\begin{enumerate}
+\item \emph{Linear-time loading (P6).} Keying trie children by hash map makes insertion $O(Nm)$ expected, as the TypeScript port already does.
+\item \emph{Exact numeric keys.} Order-preserving encodings of IEEE-754 doubles, or scaled decimals, would remove fractional truncation without giving up ordered key arrays.
+\item \emph{Fan-out-aware reduction (P2).} When a candidate collection's fan-out exceeds a threshold, merging its lists once, in $O(\|\mathcal{C}\|\log q)$, or representing it as a compressed bitmap~\cite{lemire2016roaring}, would remove the multiplicative factor in Eqs.~\eqref{eq:probeup}--\eqref{eq:expanddown}.
+\item \emph{Selectivity-ordered evaluation and predicate fusion (P3, P4).} Ordering conditions by estimated candidate size, which is available exactly from posting-list lengths, and rewriting same-attribute comparisons into \op{BETWEEN} are both local changes.
+\item \emph{Complement by difference.} Evaluating negations as a sorted-list difference against the positive side, rather than by enumerating keys, would bound \op{NOT\_EQUAL} and \op{NOT\_CONTAINS} by the size of the other operand.
+\item \emph{Limit push-down (P5).} Lazily enumerating $\mathcal{R}$ in preorder would stop after $\lambda$ results.
+\item \emph{Concurrency and updates.} The prepared structure is read-only, which suits lock-free concurrent readers. Atomic snapshot replacement provides updates. Neither has been characterized experimentally.
+\item \emph{Text quality.} Keeping a normalized key per bound attribute would fix the cross-attribute normalization defect. Comparing value sets rather than counts would make minimum match exact. Levenshtein automata~\cite{schulz2002fast} for multi-edit correction, and term weighting within the winning coverage tier, would complement coverage-first semantics.
+\item \emph{Explicit schema order.} Declaring level order through annotations or configuration, rather than relying on reflection order, would make trie layout portable. It would also let applications follow the high-cardinality-last guideline deliberately.
+\end{enumerate}
+
+\section{Conclusion}
+\label{sec:conclusion}
+Six years after the original description of equality search over depth-first-numbered attribute tries~\cite{kapoor2020efficient}, this paper presented the complete Kiara DB design. It covers typed, temporal, collection, and interval attributes; eleven operators; an adaptive structural join over disjunctive posting-list collections; and a text layer for correction, stemming, prediction, and attribute-discovering keyword search. We corrected the composite-index bound that motivates the design to $\binom{m}{\lfloor m/2\rfloor}$, derived a cost model in terms of candidate fan-out, and tested it in seven oracle-validated benchmark suites against Lucene, SQLite, and VoltDB. One logical index per attribute is competitive with, and often faster than, mature engines for ad hoc and collection-heavy conjunctions. Expert compound indexes remain superior for known scalar combinations and windows, and Kiara's current Java loader is its most significant practical weakness. The cost model identifies changes that address each observed weakness without abandoning the model.
+
+\section*{Data Availability}
+Kiara is open source~\cite{kiara2026software}. The benchmark harness, fixture generators, retail projection and its attribution, raw per-trial samples, native plans, index inventories, and generated reports are available in the Kiara demonstration repository~\cite{kiarademo2026benchmarks}.
+
+\section*{Acknowledgment}
+The author thanks the maintainers of Apache Lucene, SQLite, the Xerial JDBC driver, and VoltDB Community Edition. Generative AI tools (GitHub Copilot) assisted with benchmark-harness engineering, report drafting, and editing of this manuscript. The author reviewed, verified, and takes responsibility for all content, data, and conclusions.
