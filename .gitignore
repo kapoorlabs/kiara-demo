@@ -29,3 +29,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Manuscript (local only) ###
+paper/
